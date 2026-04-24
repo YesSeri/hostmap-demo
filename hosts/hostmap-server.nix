@@ -25,14 +25,6 @@ in
 
     targetHosts = [
       {
-        hostname = "hostmap-server";
-        host_url = "127.0.0.1";
-        metadata = {
-          environment = "prod";
-          host_group_name = "hostmap-group";
-        };
-      }
-      {
         hostname = "host1";
         host_url = "127.0.0.2";
         metadata = {
@@ -46,6 +38,14 @@ in
         metadata = {
           environment = "test";
           host_group_name = "hg-1";
+        };
+      }
+      {
+        hostname = "hostmap-server";
+        host_url = "127.0.0.4";
+        metadata = {
+          environment = "prod";
+          host_group_name = "hostmap-group";
         };
       }
     ];

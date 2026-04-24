@@ -159,53 +159,7 @@ echo "Fleet stopped."
             ''
           );
         };
-
-        ci-up = {
-          type = "app";
-          program = toString (
-            pkgs.writeShellScript "ci-up" ''
-              set -euo pipefail
-
-              if [ -d .ci-pids ]; then
-                echo "CI already running. Stop first: nix run .#ci-down"
-                exit 1
-              fi
-
-              mkdir -p .ci-pids .ci-build
-
-              echo "=== Build CI VM ==="
-              nix build \
-                .#nixosConfigurations.external-ci.config.system.build.vm \
-                --out-link .ci-build/vm
-
-              echo "=== Start external CI ==="
-              QEMU_OPTS="-nographic" .ci-build/vm/bin/*vm > .ci-pids/ci.log 2>&1 &
-              echo $! > .ci-pids/ci.pid
-
-              echo
-              echo "CI started"
-              echo "CI: ssh root@localhost -p 2224   (password: root)"
-            ''
-          );
-        };
-
-        ci-down = {
-          type = "app";
-          program = toString (
-            pkgs.writeShellScript "ci-down" ''
-              set -euo pipefail
-              echo "Stopping CI..."
-
-              [ -f .ci-pids/ci.pid ] && kill "$(cat .ci-pids/ci.pid)" || true
-
-              rm -rf .ci-pids
-              echo "CI stopped."
-            ''
-          );
-        };
       };
-      # formatter.${system} = pkgs.nixpkgs-fmt;
-      # formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixpkgs-fmt;
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt;
     };
 }

@@ -56,6 +56,18 @@ in
         proxyPass = "http://10.0.2.2:${toString (loggerPort + 1)}";
       };
     };
+
+    virtualHosts."activationlogger-hostmapServer" = {
+      listen = [
+        {
+          addr = "127.0.0.4";
+          port = loggerPort;
+        }
+      ];
+      locations."/" = {
+        proxyPass = "http://10.0.2.2:${toString (loggerPort + 2)}";
+      };
+    };
   };
 
   virtualisation.vmVariant.virtualisation.cores = 2;

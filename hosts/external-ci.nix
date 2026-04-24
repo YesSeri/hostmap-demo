@@ -15,8 +15,8 @@ let
     auth_header="Authorization: Api-Key demo"
 
     attrs=(
-      "nixosConfigurations.hostmap-host1.config.system.build.toplevel"
-      "nixosConfigurations.hostmap-host2.config.system.build.toplevel"
+      "nixosConfigurations.host1.config.system.build.toplevel"
+      "nixosConfigurations.host2.config.system.build.toplevel"
     )
 
     while read -r oldrev newrev refname; do
