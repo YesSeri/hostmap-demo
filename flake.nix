@@ -82,51 +82,49 @@
           type = "app";
           program = toString (
             pkgs.writeShellScript "fleet-up" ''
-              set -euo pipefail
+set -euo pipefail
 
-              if [ -d .fleet-state ]; then
-                echo "Fleet already running. Stop first: nix run .#fleet-down"
-                exit 1
-              fi
+if [ -d .fleet-state ]; then
+echo "Fleet already running. Stop first: nix run .#fleet-down"
+exit 1
+fi
 
-              mkdir -p .fleet-build
-              mkdir -p .fleet-state/{pids,logs,qcow2}
+mkdir -p .fleet-build
+mkdir -p .fleet-state/{pids,logs,qcow2}
 
-              echo "=== Build VMs ==="
-              nix build \
-                .#nixosConfigurations.hostmap-server.config.system.build.vm \
-                .#nixosConfigurations.host1.config.system.build.vm \
-                .#nixosConfigurations.host2.config.system.build.vm \
-                .#nixosConfigurations.external-ci.config.system.build.vm \
-                --out-link .fleet-build/vms
+echo "=== Build VMs ==="
+nix build .#nixosConfigurations.hostmap-server.config.system.build.vm --out-link .fleet-build/hostmap-server
+nix build .#nixosConfigurations.host1.config.system.build.vm          --out-link .fleet-build/host1
+nix build .#nixosConfigurations.host2.config.system.build.vm          --out-link .fleet-build/host2
+nix build .#nixosConfigurations.external-ci.config.system.build.vm    --out-link .fleet-build/external-ci
 
-              start_vm () {
-                local name="$1"
-                local vm_script="$2"
+start_vm () {
+local name="$1"
+local vm_script="$2"
+vm_script="$(realpath "$vm_script")"
 
-                echo "=== Start $name ==="
+echo "=== Start $name ==="
 
-                # Run the VM script with CWD set to qcow2 dir, so disk images land there.
-                (
-                  cd .fleet-state/qcow2
-                  QEMU_OPTS="-nographic" "$vm_script" > "../logs/$name.log" 2>&1 &
-                  echo $! > "../pids/$name.pid"
-                )
-              }
+# Run the VM script with CWD set to qcow2 dir, so disk images land there.
+(
+  cd .fleet-state/qcow2
+  QEMU_OPTS="-nographic" "$vm_script" > "../logs/$name.log" 2>&1 &
+  echo $! > "../pids/$name.pid"
+)
+}
+start_vm hostmap-server .fleet-build/hostmap-server/bin/*vm
+start_vm host1          .fleet-build/host1/bin/*vm
+start_vm host2          .fleet-build/host2/bin/*vm
+start_vm external-ci    .fleet-build/external-ci/bin/*vm
 
-              start_vm hostmap-server .fleet-build/vms/bin/*vm
-              start_vm host1          .fleet-build/vms-1/bin/*vm
-              start_vm host2          .fleet-build/vms-2/bin/*vm
-              start_vm external-ci    .fleet-build/vms-3/bin/*vm
-
-              echo
-              echo "UI (from desktop): http://localhost:8080"
-              echo "Server:    ssh root@localhost -p 2221   (password: root)"
-              echo "Host 1:    ssh root@localhost -p 2222   (password: root)"
-              echo "Host 2:    ssh root@localhost -p 2223   (password: root)"
-              echo "CI server: ssh root@localhost -p 2224   (password: root)"
-              echo "Disks: .fleet-state/qcow2/"
-              echo "Logs:  .fleet-state/logs/"
+echo
+echo "UI (from desktop): http://localhost:8080"
+echo "Server:    ssh root@localhost -p 2221   (password: root)"
+echo "Host 1:    ssh root@localhost -p 2222   (password: root)"
+echo "Host 2:    ssh root@localhost -p 2223   (password: root)"
+echo "CI server: ssh root@localhost -p 2224   (password: root)"
+echo "Disks: .fleet-state/qcow2/"
+echo "Logs:  .fleet-state/logs/"
             ''
           );
         };
@@ -134,30 +132,30 @@
           type = "app";
           program = toString (
             pkgs.writeShellScript "fleet-down" ''
-              set -euo pipefail
-              echo "Stopping fleet..."
+set -euo pipefail
+echo "Stopping fleet..."
 
-              kill_one () {
-                local name="$1"
-                local pidfile=".fleet-state/pids/$name.pid"
+kill_one () {
+local name="$1"
+local pidfile=".fleet-state/pids/$name.pid"
 
-                if [ -f "$pidfile" ]; then
-                  pid="$(cat "$pidfile")"
-                  if kill -0 "$pid" 2>/dev/null; then
-                    kill "$pid" 2>/dev/null || true
-                    # reap it so it doesn't linger as a zombie
-                    wait "$pid" 2>/dev/null || true
-                  fi
-                fi
-              }
+if [ -f "$pidfile" ]; then
+  pid="$(cat "$pidfile")"
+  if kill -0 "$pid" 2>/dev/null; then
+	kill "$pid" 2>/dev/null || true
+	# reap it so it doesn't linger as a zombie
+	wait "$pid" 2>/dev/null || true
+  fi
+fi
+}
 
-              kill_one host1
-              kill_one host2
-              kill_one external-ci
-              kill_one hostmap-server
+kill_one host1
+kill_one host2
+kill_one external-ci
+kill_one hostmap-server
 
-              rm -rf .fleet-state
-              echo "Fleet stopped."
+rm -rf .fleet-state
+echo "Fleet stopped."
             ''
           );
         };
