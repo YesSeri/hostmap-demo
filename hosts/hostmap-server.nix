@@ -2,8 +2,8 @@
 let
   demoApiKey = "demo";
   apiKeyFile = toString (pkgs.writeText "hostmap-api-key.txt" demoApiKey);
-
   loggerPort = 9001;
+  scraperProxyPort = 19001;
 in
 {
 
@@ -18,9 +18,14 @@ in
     timeZone = "Europe/Copenhagen";
   };
 
+  services.hostmap.activationLogger = {
+    enable = true;
+    port = loggerPort;
+  };
+
   services.hostmap.scraper = {
     enable = true;
-    activationLoggerPort = loggerPort;
+    activationLoggerPort = scraperProxyPort;
     apiKeyFile = apiKeyFile;
 
     targetHosts = [

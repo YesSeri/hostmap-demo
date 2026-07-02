@@ -159,6 +159,38 @@ echo "Fleet stopped."
             ''
           );
         };
+		demo = {
+  type = "app";
+  program = toString (
+    pkgs.writeShellScript "demo" ''
+      set -euo pipefail
+
+      if [ ! -d .fleet-state ]; then
+        echo "=== Starting fleet ==="
+        nix run .#fleet-up
+      else
+        echo "=== Fleet already running ==="
+      fi
+
+      echo "=== Configuring demo CI remote ==="
+      git remote remove demo-ci 2>/dev/null || true
+      git remote add demo-ci ssh://ci@localhost:2224/var/lib/ci/hostmap-demo.git
+
+      echo "=== Pushing current commit to demo CI ==="
+      git push demo-ci HEAD:master
+
+      echo "=== Activating host1 ==="
+      ./switch-host1.sh
+
+      echo "=== Activating host2 ==="
+      ./switch-host2.sh
+
+      echo
+      echo "Demo is ready."
+      echo "Open: http://localhost:8080"
+    ''
+  );
+};
       };
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt;
     };

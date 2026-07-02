@@ -1,5 +1,3 @@
-
-echo 'arg 1: ' $1
 case "$1" in
     "server")
 		system='hostmap-server'
@@ -14,13 +12,10 @@ case "$1" in
 		system='host2'
 		port=2223
 		;;
-    "ci")
-		system='external-ci'
-		port=2223
-		;;
 
 	*)
 		echo "not a valid option"
+		echo "usage: ./switch.sh <server|host1|host2|ci>"
 		exit 1;
 		;;
 esac

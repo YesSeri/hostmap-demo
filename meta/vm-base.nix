@@ -2,7 +2,7 @@
 {
   systemd.oomd.enable = false;
 
-  users.users.root.initialPassword = "root";
+  users.users.root.initialPassword = "password";
 
   services.openssh = {
     enable = true;
