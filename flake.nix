@@ -119,10 +119,10 @@ start_vm external-ci    .fleet-build/external-ci/bin/*vm
 
 echo
 echo "UI (from desktop): http://localhost:8080"
-echo "Server:    ssh root@localhost -p 2221   (password: root)"
-echo "Host 1:    ssh root@localhost -p 2222   (password: root)"
-echo "Host 2:    ssh root@localhost -p 2223   (password: root)"
-echo "CI server: ssh root@localhost -p 2224   (password: root)"
+echo "Server:    ssh root@localhost -p 2221   (password: password)"
+echo "Host 1:    ssh root@localhost -p 2222   (password: password)"
+echo "Host 2:    ssh root@localhost -p 2223   (password: password)"
+echo "CI server: ssh root@localhost -p 2224   (password: password)"
 echo "Disks: .fleet-state/qcow2/"
 echo "Logs:  .fleet-state/logs/"
             ''
@@ -159,38 +159,202 @@ echo "Fleet stopped."
             ''
           );
         };
-		demo = {
-  type = "app";
-  program = toString (
-    pkgs.writeShellScript "demo" ''
-      set -euo pipefail
+        advanced-demo = {
+        type = "app";
+        program = toString (
+          pkgs.writeShellScript "demo" ''
+            set -euo pipefail
 
-      if [ ! -d .fleet-state ]; then
-        echo "=== Starting fleet ==="
-        nix run .#fleet-up
-      else
-        echo "=== Fleet already running ==="
-      fi
+            wait_for_port () {
+              host="$1"
+              port="$2"
 
-      echo "=== Configuring demo CI remote ==="
-      git remote remove demo-ci 2>/dev/null || true
-      git remote add demo-ci ssh://ci@localhost:2224/var/lib/ci/hostmap-demo.git
+              echo "=== Waiting for $host:$port ==="
 
-      echo "=== Pushing current commit to demo CI ==="
-      git push demo-ci HEAD:master
+              for i in $(seq 1 120); do
+                if timeout 1 bash -c "cat < /dev/null > /dev/tcp/$host/$port" 2>/dev/null; then
+                  echo "=== $host:$port is ready ==="
+                  return 0
+                fi
 
-      echo "=== Activating host1 ==="
-      ./switch-host1.sh
+                sleep 1
+              done
 
-      echo "=== Activating host2 ==="
-      ./switch-host2.sh
+              echo "Timed out waiting for $host:$port"
+              exit 1
+            }
+            clear_demo_known_hosts () {
+              for port in 2221 2222 2223 2224; do
+                ssh-keygen -f "$HOME/.ssh/known_hosts" -R "[localhost]:$port" 2>/dev/null || true
+              done
+            }
 
-      echo
-      echo "Demo is ready."
-      echo "Open: http://localhost:8080"
+            push_current_commit () {
+              echo "=== Push current commit to demo CI ==="
+              echo "When asked for the ci password, enter: password"
+
+              GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+                git push demo-ci HEAD:master
+            }
+
+            commit_all () {
+              msg="$1"
+
+              git add hosts/host1.nix hosts/host2.nix
+
+              git -c user.name="Hostmap Demo" \
+                  -c user.email="demo@example.invalid" \
+                  commit -m "$msg"
+            }
+
+            set_host1_port () {
+              port="$1"
+
+              sed -i -E "s#^([[:space:]]*networking\.firewall\.allowedTCPPorts = \[ )[0-9]+( \];)#\1$port\2#" hosts/host1.nix
+
+              if git diff --quiet -- hosts/host1.nix; then
+                echo "Failed to change host1 port. Expected line like:"
+                echo '  networking.firewall.allowedTCPPorts = [ 8080 ];'
+                exit 1
+              fi
+            }
+
+            set_host2_message () {
+              message="$1"
+
+              sed -i -E "s#^([[:space:]]*environment\.etc\.\"hostmap-demo-message\.txt\"\.text = \")[^\"]*(\";)#\1$message\2#" hosts/host2.nix
+
+              if git diff --quiet -- hosts/host2.nix; then
+                echo "Failed to change host2 message. Expected line like:"
+                echo '  environment.etc."hostmap-demo-message.txt".text = "hello world from host2";'
+                exit 1
+              fi
+            }
+
+            repo_root="$(git rev-parse --show-toplevel)"
+            cd "$repo_root"
+
+            if [ -n "$(git status --porcelain)" ]; then
+              echo "Working tree is not clean."
+              echo "Commit or stash your changes before running the demo."
+              exit 1
+            fi
+
+            if [ ! -d .fleet-state ]; then
+              echo "=== Starting demo fleet ==="
+              nix run .#fleet-up
+            else
+              echo "=== Fleet already running ==="
+            fi
+
+            clear_demo_known_hosts
+
+            wait_for_port localhost 2224
+            wait_for_port localhost 8080
+
+            echo "=== Configure demo CI remote ==="
+            git remote remove demo-ci 2>/dev/null || true
+            git remote add demo-ci ssh://ci@localhost:2224/var/lib/ci/hostmap-demo.git
+
+            echo "=== Commit A: current state ==="
+            push_current_commit
+
+            echo "=== Activate host1 and host2 ==="
+            ./switch.sh host1
+            ./switch.sh host2
+
+            echo "=== Commit B: host1 opens TCP port 8081 ==="
+            set_host1_port 8081
+            commit_all "Demo: open TCP port 8081 on host1"
+            push_current_commit
+            ./switch.sh host1
+
+            echo "=== Commit C: host1 changes open TCP port to 8082 ==="
+            set_host1_port 8082
+            commit_all "Demo: change host1 open TCP port to 8082"
+            push_current_commit
+            ./switch.sh host1
+
+            echo "=== Commit D: host2 changes the /etc demo file ==="
+        set_host2_message "hello from host2 demo commit"
+        commit_all "Demo: change /etc demo file on host2"
+        push_current_commit
+        ./switch.sh host2
+
+        echo "=== Commit E: host2 changes the /etc demo file again ==="
+        set_host2_message "host2 changed the demo message again"
+        commit_all "Demo: change /etc demo file on host2 again"
+        push_current_commit
+        ./switch.sh host2
+
+        echo
+        echo "Demo ready."
+        echo "Open: http://localhost:8080"
+        echo
+        echo "Expected result:"
+        echo "- host1 has historical activations for the port changes"
+        echo "- host2 has historical activations for the /etc file changes"
+        echo "- the Hostmap UI can link the activated system images to Git commits"
     ''
   );
 };
+
+# 	  demo = {
+#   type = "app";
+#   program = toString (
+#     pkgs.writeShellScript "demo" ''
+#       set -euo pipefail
+
+#       wait_for_port () {
+#         local host="$1"
+#         local port="$2"
+
+#         echo "=== Waiting for $host:$port ==="
+
+#         for i in $(seq 1 120); do
+#           if timeout 1 bash -c "cat < /dev/null > /dev/tcp/$host/$port" 2>/dev/null; then
+#             echo "=== $host:$port is ready ==="
+#             return 0
+#           fi
+
+#           sleep 1
+#         done
+
+#         echo "Timed out waiting for $host:$port"
+#         exit 1
+#       }
+
+#       if [ ! -d .fleet-state ]; then
+#         echo "=== Starting fleet ==="
+#         nix run .#fleet-up
+#       else
+#         echo "=== Fleet already running ==="
+#       fi
+
+#       wait_for_port localhost 2224
+#       wait_for_port localhost 8080
+
+#       echo "=== Configuring demo CI remote ==="
+#       git remote remove ci 2>/dev/null || true
+#       ssh-keygen -f "$HOME/.ssh/known_hosts" -R "[localhost]:2224" 2>/dev/null || true
+#       git remote add ci ssh://ci@localhost:2224/var/lib/ci/hostmap-demo.git
+
+#       echo "=== Pushing current commit to demo CI ==="
+#       echo "When asked for the ci password, enter: password"
+#       git push ci HEAD:master
+
+#       echo "=== Activating host1 ==="
+#       ./switch.sh host1
+
+#       echo "=== Activating host2 ==="
+#       ./switch.sh host2
+
+#       echo
+#       echo "Demo is ready."
+#       echo "Open: http://localhost:8080"
+#     ''
+#   );
+# };
       };
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt;
     };
