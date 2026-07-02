@@ -21,7 +21,7 @@ case "$1" in
 esac
 
 attr=".#nixosConfigurations.${system}.config.system.build.toplevel"
-export NIX_SSHOPTS="-p ${port}"
+export NIX_SSHOPTS="-p ${port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 echo 'attr: ' $attr
 echo 'opts: ' $NIX_SSHOPTS
 # exit 0

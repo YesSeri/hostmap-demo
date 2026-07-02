@@ -276,25 +276,25 @@ echo "Fleet stopped."
             ./switch.sh host1
 
             echo "=== Commit D: host2 changes the /etc demo file ==="
-        set_host2_message "hello from host2 demo commit"
-        commit_all "Demo: change /etc demo file on host2"
-        push_current_commit
-        ./switch.sh host2
+            set_host2_message "hello from host2 demo commit"
+            commit_all "Demo: change /etc demo file on host2"
+            push_current_commit
+            ./switch.sh host2
 
-        echo "=== Commit E: host2 changes the /etc demo file again ==="
-        set_host2_message "host2 changed the demo message again"
-        commit_all "Demo: change /etc demo file on host2 again"
-        push_current_commit
-        ./switch.sh host2
+            echo "=== Commit E: host2 changes the /etc demo file again ==="
+            set_host2_message "host2 changed the demo message again"
+            commit_all "Demo: change /etc demo file on host2 again"
+            push_current_commit
+            ./switch.sh host2
 
-        echo
-        echo "Demo ready."
-        echo "Open: http://localhost:8080"
-        echo
-        echo "Expected result:"
-        echo "- host1 has historical activations for the port changes"
-        echo "- host2 has historical activations for the /etc file changes"
-        echo "- the Hostmap UI can link the activated system images to Git commits"
+            echo
+            echo "Demo ready."
+            echo "Open: http://localhost:8080"
+            echo
+            echo "Expected result:"
+            echo "- host1 has historical activations for the port changes"
+            echo "- host2 has historical activations for the /etc file changes"
+            echo "- the Hostmap UI can link the activated system images to Git commits"
     ''
   );
 };
