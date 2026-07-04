@@ -94,10 +94,10 @@ The VM state and logs are stored in:
 ## SSH Access
 
 ```bash
-ssh root@localhost -p 2221 # hostmap-server
-ssh root@localhost -p 2222 # host1
-ssh root@localhost -p 2223 # host2
-ssh root@localhost -p 2224 # external-ci
+ssh root@localhost -p 2221 -i test-key # hostmap-server
+ssh root@localhost -p 2222 -i test-key # host1
+ssh root@localhost -p 2223 -i test-key # host2
+ssh root@localhost -p 2224 -i test-key # external-ci
 ```
 
 The root password is:

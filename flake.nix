@@ -118,13 +118,11 @@ start_vm host2          .fleet-build/host2/bin/*vm
 start_vm external-ci    .fleet-build/external-ci/bin/*vm
 
 echo
-echo "UI (from desktop): http://localhost:8080"
-echo "Server:    ssh root@localhost -p 2221   (password: password)"
-echo "Host 1:    ssh root@localhost -p 2222   (password: password)"
-echo "Host 2:    ssh root@localhost -p 2223   (password: password)"
-echo "CI server: ssh root@localhost -p 2224   (password: password)"
-echo "Disks: .fleet-state/qcow2/"
-echo "Logs:  .fleet-state/logs/"
+echo "Web site for overview of hosts is at http://localhost:8080"
+echo "Server:    ssh root@localhost -p 2221 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./test-key"
+echo "Host 1:    ssh root@localhost -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./test-key"
+echo "Host 2:    ssh root@localhost -p 2223 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./test-key"
+echo "CI server: ssh root@localhost -p 2224 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./test-key"
             ''
           );
         };
@@ -193,7 +191,7 @@ echo "Fleet stopped."
               echo "=== Push current commit to demo CI ==="
               echo "When asked for the ci password, enter: password"
 
-              GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+              GIT_SSH_COMMAND="ssh -i test-key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
                 git push demo-ci HEAD:master
             }
 
