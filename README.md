@@ -8,13 +8,9 @@ This demo starts four servers.
 
 * a `hostmap-server` VM running the hostmap Server and Scraper
 * two NixOS hosts: `host1` and `host2`
-* an `external-ci` VM that simulates a CI server sending store-path-to-commit mappings to hostmap
+* your computer acts as a ci server supplying the mapping between nix image and git commit to the hostmap server
 
-The activation logger that keeps track of nix os system images runs on `hostmap-server`, `host1`, and `host2`.
-
-The `external-ci` server is a bare Git repository with a `post-receive` hook. When you push a commit to it, the hook evaluates the NixOS system store paths for `host1` and `host2`, then sends the mappings to the hostmap Server API. The 
-
-By going to `http://localhost:8080` you can see the current and historical state of the fleet.
+The activation logger that keeps track of nix os system images runs on `hostmap-server`, `host1`, and `host2`. By going to `http://localhost:8080` you can see the current and historical state of the fleet.
 
 
 ## Prerequisites
@@ -32,7 +28,7 @@ You need:
 Start the demo fleet:
 
 ```bash
-nix run .#fleet-up
+nix run .#fleet-up && nix run .#demo
 ```
 
 Open the hostmap website:
@@ -41,23 +37,6 @@ Open the hostmap website:
 http://localhost:8080
 ```
 
-Add the demo CI server as a Git remote:
-
-```bash
-git remote add demo-ci ssh://ci@localhost:2224/var/lib/ci/hostmap-demo.git
-```
-
-Push the current commit to the demo CI server:
-
-```bash
-git push demo-ci HEAD:master
-```
-
-The password for the `ci` user is:
-
-```text
-password
-```
 
 Activate the demo hosts:
 
@@ -74,7 +53,7 @@ To demonstrate a change, edit `hosts/host2.nix`, commit the change, push it to t
 ```bash
 git add hosts/host2.nix
 git commit -m "Change host2 demo configuration"
-git push demo-ci HEAD:master
+nix run .#link-current-commit
 ./switch-host2.sh
 ```
 
@@ -95,10 +74,10 @@ The VM state and logs are stored in:
 ## SSH Access
 
 ```bash
-ssh root@localhost -p 2221 -i test-key # hostmap-server
-ssh root@localhost -p 2222 -i test-key # host1
-ssh root@localhost -p 2223 -i test-key # host2
-ssh root@localhost -p 2224 -i test-key # external-ci
+nix develop
+ssh root@localhost -p 2221 $DEMO_SSH_OPTS # hostmap-server
+ssh root@localhost -p 2222 $DEMO_SSH_OPTS # host1
+ssh root@localhost -p 2223 $DEMO_SSH_OPTS # host2
 ```
 
 The root password is:
