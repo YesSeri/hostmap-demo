@@ -31,24 +31,28 @@ Start the demo fleet:
 nix run .#fleet-up && nix run .#demo
 ```
 
-Open the hostmap website:
+The demo will:
+1. start the VM fleet if it is not already running
+2. send the current Git commit to store-path mappings to Hostmap
+3. activate host1 and host2
+4. create demo commits that change the host configurations
+5. send the new mappings to Hostmap
+6. activate the changed hosts
+
+See the state of the servers here:
 
 ```text
 http://localhost:8080
 ```
 
 
-Activate the demo hosts:
+To activate a single system image you can use:
 
 ```bash
-./switch.sh server
-./switch.sh host1
-./switch.sh host2
+./switch.sh <server|host1|host2>
 ```
 
-Go to website. You should now see a list of the current system image for each host.
-
-To demonstrate a change, edit `hosts/host2.nix`, commit the change, push it to the demo CI server, and activate only `host2`:
+To create a new system image and make it show in the ui, edit `hosts/host2.nix`, commit the change, and then link the current commit.
 
 ```bash
 git add hosts/host2.nix
@@ -59,17 +63,12 @@ nix run .#link-current-commit
 
 Refresh the UI again. `host2` should now have changed, while `host1` should still be running the previous system image.
 
-Stop the fleet:
+Stop the vms:
 
 ```bash
 nix run .#fleet-down
 ```
 
-The VM state and logs are stored in:
-
-```text
-.fleet-state/
-```
 
 ## SSH Access
 
@@ -80,12 +79,6 @@ ssh root@localhost -p 2222 $DEMO_SSH_OPTS # host1
 ssh root@localhost -p 2223 $DEMO_SSH_OPTS # host2
 ```
 
-The root password is:
-
-```text
-password
-```
-
 ## Notes
 
-This is a local demo environment. It uses fixed passwords, root SSH login, and a demo API key. Do not use these settings in production.
+This is a local demo environment. Do not use these settings in production.
