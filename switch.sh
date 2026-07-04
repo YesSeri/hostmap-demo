@@ -26,7 +26,7 @@ esac
 attr=".#nixosConfigurations.${target}.config.system.build.toplevel"
 storepath=$(nix build --no-link --print-out-paths ${attr})
 
-export NIX_SSHOPTS="-p ${port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./test-key"
+export NIX_SSHOPTS="-p ${port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./test-key  -o LogLevel=ERROR"
 
 nix copy --to ssh://root@localhost "$storepath"
 

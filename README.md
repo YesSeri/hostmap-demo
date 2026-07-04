@@ -62,11 +62,12 @@ password
 Activate the demo hosts:
 
 ```bash
-./switch-host1.sh
-./switch-host2.sh
+./switch.sh server
+./switch.sh host1
+./switch.sh host2
 ```
 
-Refresh the hostmap UI. You should now see the active NixOS system image for each host, together with the Git commit that produced it.
+Go to website. You should now see a list of the current system image for each host.
 
 To demonstrate a change, edit `hosts/host2.nix`, commit the change, push it to the demo CI server, and activate only `host2`:
 

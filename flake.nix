@@ -77,8 +77,15 @@
         ];
       };
 
+		devShells.${system}.default = pkgs.mkShell {
+		  shellHook = ''
+			export DEMO_SSH_OPTS="-i ./test-key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes"
+			echo 'demo SSH options are available at $DEMO_SSH_OPTS'
+		  '';
+		};
+
       apps.${system} = {
-        fleet-up = {
+       fleet-up = {
           type = "app";
           program = toString (
             pkgs.writeShellScript "fleet-up" ''
@@ -189,10 +196,8 @@ echo "Fleet stopped."
 
             push_current_commit () {
               echo "=== Push current commit to demo CI ==="
-              echo "When asked for the ci password, enter: password"
 
-              GIT_SSH_COMMAND="ssh -i test-key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
-                git push demo-ci HEAD:master
+              GIT_SSH_COMMAND="ssh -i test-key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" git push demo-ci HEAD:master
             }
 
             commit_all () {
@@ -297,62 +302,6 @@ echo "Fleet stopped."
   );
 };
 
-# 	  demo = {
-#   type = "app";
-#   program = toString (
-#     pkgs.writeShellScript "demo" ''
-#       set -euo pipefail
-
-#       wait_for_port () {
-#         local host="$1"
-#         local port="$2"
-
-#         echo "=== Waiting for $host:$port ==="
-
-#         for i in $(seq 1 120); do
-#           if timeout 1 bash -c "cat < /dev/null > /dev/tcp/$host/$port" 2>/dev/null; then
-#             echo "=== $host:$port is ready ==="
-#             return 0
-#           fi
-
-#           sleep 1
-#         done
-
-#         echo "Timed out waiting for $host:$port"
-#         exit 1
-#       }
-
-#       if [ ! -d .fleet-state ]; then
-#         echo "=== Starting fleet ==="
-#         nix run .#fleet-up
-#       else
-#         echo "=== Fleet already running ==="
-#       fi
-
-#       wait_for_port localhost 2224
-#       wait_for_port localhost 8080
-
-#       echo "=== Configuring demo CI remote ==="
-#       git remote remove ci 2>/dev/null || true
-#       ssh-keygen -f "$HOME/.ssh/known_hosts" -R "[localhost]:2224" 2>/dev/null || true
-#       git remote add ci ssh://ci@localhost:2224/var/lib/ci/hostmap-demo.git
-
-#       echo "=== Pushing current commit to demo CI ==="
-#       echo "When asked for the ci password, enter: password"
-#       git push ci HEAD:master
-
-#       echo "=== Activating host1 ==="
-#       ./switch.sh host1
-
-#       echo "=== Activating host2 ==="
-#       ./switch.sh host2
-
-#       echo
-#       echo "Demo is ready."
-#       echo "Open: http://localhost:8080"
-#     ''
-#   );
-# };
       };
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt;
     };
