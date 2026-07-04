@@ -124,12 +124,14 @@ start_vm host1          .fleet-build/host1/bin/*vm
 start_vm host2          .fleet-build/host2/bin/*vm
 start_vm external-ci    .fleet-build/external-ci/bin/*vm
 
-echo
-echo "Web site for overview of hosts is at http://localhost:8080"
-echo "Server:    ssh root@localhost -p 2221 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./test-key"
-echo "Host 1:    ssh root@localhost -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./test-key"
-echo "Host 2:    ssh root@localhost -p 2223 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./test-key"
-echo "CI server: ssh root@localhost -p 2224 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./test-key"
+cat <<'EOF'
+Web site for overview of hosts is at http://localhost:8080
+Run nix develop and then use the following to access servers
+Server:    ssh root@localhost -p 2221 $DEMO_SSH_OPTS
+Host 1:    ssh root@localhost -p 2222 $DEMO_SSH_OPTS
+Host 2:    ssh root@localhost -p 2223 $DEMO_SSH_OPTS
+CI server: ssh root@localhost -p 2224 $DEMO_SSH_OPTS
+EOF
             ''
           );
         };
@@ -265,6 +267,7 @@ echo "Fleet stopped."
             echo "=== Activate host1 and host2 ==="
             ./switch.sh host1
             ./switch.sh host2
+            ./switch.sh server
 
             echo "=== Commit B: host1 opens TCP port 8081 ==="
             set_host1_port 8081
@@ -272,23 +275,23 @@ echo "Fleet stopped."
             push_current_commit
             ./switch.sh host1
 
-            echo "=== Commit C: host1 changes open TCP port to 8082 ==="
-            set_host1_port 8082
-            commit_all "Demo: change host1 open TCP port to 8082"
-            push_current_commit
-            ./switch.sh host1
+            #echo "=== Commit C: host1 changes open TCP port to 8082 ==="
+            #set_host1_port 8082
+            #commit_all "Demo: change host1 open TCP port to 8082"
+            #push_current_commit
+            #./switch.sh host1
 
-            echo "=== Commit D: host2 changes the /etc demo file ==="
-            set_host2_message "hello from host2 demo commit"
-            commit_all "Demo: change /etc demo file on host2"
-            push_current_commit
-            ./switch.sh host2
+            #echo "=== Commit D: host2 changes the /etc demo file ==="
+            #set_host2_message "hello from host2 demo commit"
+            #commit_all "Demo: change /etc demo file on host2"
+            #push_current_commit
+            #./switch.sh host2
 
-            echo "=== Commit E: host2 changes the /etc demo file again ==="
-            set_host2_message "host2 changed the demo message again"
-            commit_all "Demo: change /etc demo file on host2 again"
-            push_current_commit
-            ./switch.sh host2
+            #echo "=== Commit E: host2 changes the /etc demo file again ==="
+            #set_host2_message "host2 changed the demo message again"
+            #commit_all "Demo: change /etc demo file on host2 again"
+            #push_current_commit
+            #./switch.sh host2
 
             echo
             echo "Demo ready."

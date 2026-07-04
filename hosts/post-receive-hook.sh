@@ -1,5 +1,41 @@
-
 set -euo pipefail
+
+
+attrs=(
+  "nixosConfigurations.host1.config.system.build.toplevel"
+  "nixosConfigurations.host2.config.system.build.toplevel"
+  "nixosConfigurations.hostmap-server.config.system.build.toplevel"
+)
+build_payload() {
+  local commit_hash="$1"
+  local branch="$2"
+  local created_at="$3"
+
+  local first=true
+
+  echo "["
+
+  for attr in "${attrs[@]}"; do
+	nix eval --raw ".#${attr}.outPath"
+
+    if [ "$first" = true ]; then
+      first=false
+    else
+      echo ","
+    fi
+
+    cat <<EOF
+  {
+    "store_path": "$store_path",
+    "commit_hash": "$commit_hash",
+    "branch": "$branch",
+    "created_at": "$created_at"
+  }
+EOF
+  done
+
+  echo "]"
+}
 
 homeDir="/var/lib/ci"
 repo_dir="$(pwd)"
@@ -9,11 +45,6 @@ pushlog="${homeDir}/push.log"
 hostmap_url="http://10.0.2.2:8080/api/link/bulk"
 auth_header="Authorization: Api-Key demo"
 
-attrs=(
-  "nixosConfigurations.host1.config.system.build.toplevel"
-  "nixosConfigurations.host2.config.system.build.toplevel"
-  "nixosConfigurations.hostmap-server.config.system.build.toplevel"
-)
 
 while read -r oldrev newrev refname; do
   branch="${refname#refs/heads/}"
@@ -32,24 +63,7 @@ while read -r oldrev newrev refname; do
 
   now="$(date -u -Is)"
 
-  payload="$(
-       for attr in "${attrs[@]}"; do
-         path="$(nix eval --raw ".#${attr}.outPath")"
-         printf '%s\n' "$path"
-       done | jq -Rn \
-         --arg commit_hash "$newrev" \
-         --arg branch "$branch" \
-         --arg created_at "$now" \
-         '[ inputs
-                | select(length > 0)
-                | {
-                        store_path: .,
-                        commit_hash: $commit_hash,
-                        branch: $branch,
-                        created_at: $created_at
-                  }
-          ]'
-  )"
+  payload=`build_payload "$newrev" "$branch" "$now"`
 
   curl -fsS \
        -H "$auth_header" \
