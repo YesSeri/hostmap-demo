@@ -63,19 +63,6 @@
           ./hosts/host2.nix
         ];
       };
-      nixosConfigurations.external-ci = lib.nixosSystem {
-        inherit system pkgs;
-        modules = [
-          (import (nixpkgs + "/nixos/modules/virtualisation/qemu-vm.nix"))
-
-          ./meta/vm-base.nix
-          ./meta/vm-network-ci.nix
-
-          ./hosts/common.nix
-          hostmap.nixosModules.hostmap
-          ./hosts/external-ci.nix
-        ];
-      };
 
 		devShells.${system}.default = pkgs.mkShell {
 		  shellHook = ''
@@ -103,7 +90,6 @@ echo "=== Build VMs ==="
 nix build .#nixosConfigurations.hostmap-server.config.system.build.vm --out-link .fleet-build/hostmap-server
 nix build .#nixosConfigurations.host1.config.system.build.vm          --out-link .fleet-build/host1
 nix build .#nixosConfigurations.host2.config.system.build.vm          --out-link .fleet-build/host2
-nix build .#nixosConfigurations.external-ci.config.system.build.vm    --out-link .fleet-build/external-ci
 
 start_vm () {
 local name="$1"
@@ -122,7 +108,6 @@ echo "=== Start $name ==="
 start_vm hostmap-server .fleet-build/hostmap-server/bin/*vm
 start_vm host1          .fleet-build/host1/bin/*vm
 start_vm host2          .fleet-build/host2/bin/*vm
-start_vm external-ci    .fleet-build/external-ci/bin/*vm
 
 cat <<'EOF'
 Web site for overview of hosts is at http://localhost:8080
@@ -130,7 +115,7 @@ Run nix develop and then use the following to access servers
 Server:    ssh root@localhost -p 2221 $DEMO_SSH_OPTS
 Host 1:    ssh root@localhost -p 2222 $DEMO_SSH_OPTS
 Host 2:    ssh root@localhost -p 2223 $DEMO_SSH_OPTS
-CI server: ssh root@localhost -p 2224 $DEMO_SSH_OPTS
+CI server: your computer is acting as CI server for this demo
 EOF
             ''
           );
@@ -158,7 +143,6 @@ fi
 
 kill_one host1
 kill_one host2
-kill_one external-ci
 kill_one hostmap-server
 
 rm -rf .fleet-state
@@ -190,16 +174,54 @@ echo "Fleet stopped."
               echo "Timed out waiting for $host:$port"
               exit 1
             }
-            clear_demo_known_hosts () {
-              for port in 2221 2222 2223 2224; do
-                ssh-keygen -f "$HOME/.ssh/known_hosts" -R "[localhost]:$port" 2>/dev/null || true
-              done
-            }
 
-            push_current_commit () {
-              echo "=== Push current commit to demo CI ==="
-
-              GIT_SSH_COMMAND="ssh -i test-key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" git push demo-ci HEAD:master
+			link_current_commit () {
+              echo "=== Link current commit to store paths ==="
+            
+              commit_hash="$(git rev-parse HEAD)"
+              branch="$(git branch --show-current)"
+              created_at="$(date -u -Is)"
+            
+              attrs=(
+                "nixosConfigurations.host1.config.system.build.toplevel"
+                "nixosConfigurations.host2.config.system.build.toplevel"
+                "nixosConfigurations.hostmap-server.config.system.build.toplevel"
+              )
+            
+              first=true
+            
+              payload="$(
+                echo "["
+            
+                for attr in "''${attrs[@]}"; do
+                  store_path="$(nix eval --raw ".#''${attr}.outPath")"
+            
+                  if [ "$first" = true ]; then
+                    first=false
+                  else
+                    echo ","
+                  fi
+            
+                  cat <<EOF
+              {
+                "store_path": "$store_path",
+                "commit_hash": "$commit_hash",
+                "branch": "$branch",
+                "created_at": "$created_at"
+              }
+            EOF
+                done
+            
+                echo "]"
+              )"
+            
+              curl -fsS \
+                -H "Authorization: Api-Key demo" \
+                -H "content-type: application/json" \
+                -d "$payload" \
+                "http://localhost:8080/api/link/bulk"
+            
+              echo
             }
 
             commit_all () {
@@ -252,17 +274,10 @@ echo "Fleet stopped."
               echo "=== Fleet already running ==="
             fi
 
-            clear_demo_known_hosts
-
-            wait_for_port localhost 2224
             wait_for_port localhost 8080
 
-            echo "=== Configure demo CI remote ==="
-            git remote remove demo-ci 2>/dev/null || true
-            git remote add demo-ci ssh://ci@localhost:2224/var/lib/ci/hostmap-demo.git
-
             echo "=== Commit A: current state ==="
-            push_current_commit
+            link_current_commit
 
             echo "=== Activate host1 and host2 ==="
             ./switch.sh host1
@@ -272,25 +287,25 @@ echo "Fleet stopped."
             echo "=== Commit B: host1 opens TCP port 8081 ==="
             set_host1_port 8081
             commit_all "Demo: open TCP port 8081 on host1"
-            push_current_commit
+            link_current_commit
             ./switch.sh host1
 
             #echo "=== Commit C: host1 changes open TCP port to 8082 ==="
             #set_host1_port 8082
             #commit_all "Demo: change host1 open TCP port to 8082"
-            #push_current_commit
+            #link_current_commit
             #./switch.sh host1
 
             #echo "=== Commit D: host2 changes the /etc demo file ==="
             #set_host2_message "hello from host2 demo commit"
             #commit_all "Demo: change /etc demo file on host2"
-            #push_current_commit
+            #link_current_commit
             #./switch.sh host2
 
             #echo "=== Commit E: host2 changes the /etc demo file again ==="
             #set_host2_message "host2 changed the demo message again"
             #commit_all "Demo: change /etc demo file on host2 again"
-            #push_current_commit
+            #link_current_commit
             #./switch.sh host2
 
             echo
