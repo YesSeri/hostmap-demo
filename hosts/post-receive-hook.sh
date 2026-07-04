@@ -1,68 +1,61 @@
-set -e
 
-repo_dir="$(pwd)"
+set -euo pipefail
+
 homeDir="/var/lib/ci"
-workdir="$homeDir/work"
-pushlog="$homeDir/push.log"
-joblogdir="$homeDir/jobs"
+repo_dir="$(pwd)"
+workdir="${homeDir}/work"
+pushlog="${homeDir}/push.log"
 
-mkdir -p "$joblogdir"
+hostmap_url="http://10.0.2.2:8080/api/link/bulk"
+auth_header="Authorization: Api-Key demo"
 
-log() {
-  echo "$(date -Is) $*" >> "$pushlog"
-}
+attrs=(
+  "nixosConfigurations.host1.config.system.build.toplevel"
+  "nixosConfigurations.host2.config.system.build.toplevel"
+  "nixosConfigurations.hostmap-server.config.system.build.toplevel"
+)
 
 while read -r oldrev newrev refname; do
   branch="${refname#refs/heads/}"
-  joblog="$joblogdir/$newrev.log"
 
-  log "queued commit=$newrev branch=$branch joblog=$joblog"
+  if [ "$newrev" = "0000000000000000000000000000000000000000" ]; then
+       echo "$(date -Is) deleted ref=$refname oldrev=$oldrev" >> "$pushlog"
+       continue
+  fi
 
-  (
-    set -e
+  rm -rf "$workdir"
+  git --git-dir "$repo_dir" worktree prune >/dev/null 2>&1 || true
+  git --git-dir "$repo_dir" worktree add --force "$workdir" "$newrev" >/dev/null
 
-    if [ "$newrev" = "0000000000000000000000000000000000000000" ]; then
-      log "deleted ref=$refname oldrev=$oldrev"
-      exit 0
-    fi
+  cd "$workdir"
+  [ -f flake.nix ] || { echo "flake.nix missing" >&2; exit 2; }
 
-    rm -rf "$workdir"
-    git --git-dir "$repo_dir" worktree prune
-    git --git-dir "$repo_dir" worktree add --force "$workdir" "$newrev"
+  now="$(date -u -Is)"
 
-    cd "$workdir"
+  payload="$(
+       for attr in "${attrs[@]}"; do
+         path="$(nix eval --raw ".#${attr}.outPath")"
+         printf '%s\n' "$path"
+       done | jq -Rn \
+         --arg commit_hash "$newrev" \
+         --arg branch "$branch" \
+         --arg created_at "$now" \
+         '[ inputs
+                | select(length > 0)
+                | {
+                        store_path: .,
+                        commit_hash: $commit_hash,
+                        branch: $branch,
+                        created_at: $created_at
+                  }
+          ]'
+  )"
 
-    now="$(date -u -Is)"
+  curl -fsS \
+       -H "$auth_header" \
+       -H 'content-type: application/json' \
+       -d "$payload" \
+       "$hostmap_url"
 
-    payload="$(
-      {
-        nix eval --raw ".#nixosConfigurations.host1.config.system.build.toplevel.outPath"
-        nix eval --raw ".#nixosConfigurations.host2.config.system.build.toplevel.outPath"
-      } | jq -Rn \
-        --arg commit_hash "$newrev" \
-        --arg branch "$branch" \
-        --arg created_at "$now" \
-        '[ inputs
-          | select(length > 0)
-          | {
-              store_path: .,
-              commit_hash: $commit_hash,
-              branch: $branch,
-              created_at: $created_at
-            }
-        ]'
-    )"
-
-    curl -fsS \
-      -o /dev/null \
-      -H "Authorization: Api-Key demo" \
-      -H 'content-type: application/json' \
-      -d "$payload" \
-      "http://10.0.2.2:8080/api/link/bulk"
-
-    log "linked commit=$newrev branch=$branch count=2"
-  ) >> "$joblog" 2>&1 < /dev/null &
-
+  echo "$(date -Is) linked commit=$newrev branch=$branch count=${#attrs[@]}" >> "$pushlog"
 done
-
-echo "Queued hostmap linking job."
